@@ -1,11 +1,29 @@
-﻿target/
+﻿# Build
+target/
+bin/
 *.class
 *.jar
 *.war
+
+# IDE
 .idea/
 *.iml
 .vscode/
+.settings/
+.project
+.classpath
+
+# Logs
 logs/
 *.log
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Archive
 *.zip
+*.rar
+
+# Duplicate backup
+test/MailServer/
