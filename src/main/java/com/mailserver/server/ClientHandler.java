@@ -319,7 +319,8 @@ public class ClientHandler implements Runnable {
                                                 subject,
                                                 content);
 
-                                boolean success = emailDAO.sendEmail(email);
+                                int newEmailId = emailDAO.sendEmail(email);
+                                boolean success = (newEmailId > 0);
 
                                 if (success) {
                                         writer.println("SEND_SUCCESS");

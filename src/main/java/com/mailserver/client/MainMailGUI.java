@@ -14,9 +14,11 @@ import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,6 +27,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -40,20 +43,6 @@ import com.mailserver.ServerConfig;
 import com.mailserver.dao.EmailDAO;
 import com.mailserver.model.Email;
 
-/**
- * ============================================================
- * MAIL SERVER - MAIN GUI
- * ============================================================
- *
- * Giao diện chính của Mail Client.
- *
- * Chức năng:
- * - Inbox (qua POP3)
- * - Compose (qua SMTP)
- * - Sent (qua POP3 mở rộng: SENT + RTRS)
- * - Trash (qua DAO — chưa chuyển sang server)
- * - Logout
- */
 public class MainMailGUI extends JFrame {
 
         private final EmailDAO emailDAO = new EmailDAO();
@@ -144,7 +133,6 @@ public class MainMailGUI extends JFrame {
                 sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
                 sidebar.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-                // LOGO
                 JPanel logoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
                 logoPanel.setOpaque(false);
                 logoPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -163,7 +151,6 @@ public class MainMailGUI extends JFrame {
                 sidebar.add(logoPanel);
                 sidebar.add(Box.createVerticalStrut(12));
 
-                // USER CARD
                 JPanel userCard = new JPanel(new BorderLayout(8, 0));
                 userCard.setBackground(new Color(30, 41, 59));
                 userCard.setBorder(new EmptyBorder(8, 10, 8, 10));
@@ -200,15 +187,6 @@ public class MainMailGUI extends JFrame {
                 sidebar.add(userCard);
                 sidebar.add(Box.createVerticalStrut(10));
 
-                // MENU LABEL
-                // JLabel menuLabel = new JLabel("MAILBOX");
-                // menuLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-                // menuLabel.setForeground(new Color(100, 116, 139));
-                // menuLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
-                // menuLabel.setBorder(new EmptyBorder(0, 8, 10, 0));
-                // sidebar.add(menuLabel);
-
-                // MENU BUTTONS
                 MailMenuButton inbox = new MailMenuButton("Inbox", MailMenuButton.INBOX);
                 MailMenuButton starred = new MailMenuButton("Starred", MailMenuButton.STARRED);
                 MailMenuButton compose = new MailMenuButton("Compose", MailMenuButton.COMPOSE);
@@ -233,12 +211,10 @@ public class MainMailGUI extends JFrame {
 
                 sidebar.add(Box.createVerticalGlue());
 
-                // LOGOUT
                 MailMenuButton logout = new MailMenuButton("Logout", MailMenuButton.LOGOUT);
                 logout.setAlignmentX(Component.LEFT_ALIGNMENT);
                 sidebar.add(logout);
 
-                // EVENTS
                 inbox.addActionListener(e -> showInbox());
                 starred.addActionListener(e -> showStarred());
                 compose.addActionListener(e -> showCompose());
@@ -300,7 +276,6 @@ public class MainMailGUI extends JFrame {
 
                 JPanel card = createCard();
 
-                // ===== HEADER =====
                 JPanel cardHeader = new JPanel(new BorderLayout());
                 cardHeader.setOpaque(false);
 
@@ -322,7 +297,6 @@ public class MainMailGUI extends JFrame {
                 cardHeader.add(refresh, BorderLayout.EAST);
                 card.add(cardHeader, BorderLayout.NORTH);
 
-                // ===== EMAIL LIST =====
                 JPanel emailList = new JPanel();
                 emailList.setOpaque(false);
                 emailList.setLayout(new BoxLayout(emailList, BoxLayout.Y_AXIS));
@@ -365,11 +339,6 @@ public class MainMailGUI extends JFrame {
 
         private String getUserEmail() {
 
-                /*
-                 * Tạm thời ánh xạ username -> email.
-                 * Sau này có thể lấy trực tiếp từ UserDAO.
-                 */
-
                 if (username.equalsIgnoreCase("thanh")) {
                         return "thanh@mail.local";
                 }
@@ -388,7 +357,17 @@ public class MainMailGUI extends JFrame {
         private JPanel createEmailItem(Email email) {
 
                 JPanel item = new JPanel(new BorderLayout(15, 0));
-                item.setBackground(Color.WHITE);
+
+                boolean read = emailDAO.isRead(
+                                email.getId(),
+                                getUserEmail());
+
+                final Color NORMAL_BG = read
+                                ? Color.WHITE
+                                : new Color(239, 246, 255);
+                final Color HOVER_BG = new Color(226, 232, 240);
+
+                item.setBackground(NORMAL_BG);
                 item.setBorder(BorderFactory.createCompoundBorder(
                                 BorderFactory.createLineBorder(BORDER),
                                 new EmptyBorder(15, 15, 15, 15)));
@@ -401,15 +380,14 @@ public class MainMailGUI extends JFrame {
                 information.setOpaque(false);
                 information.setLayout(new BoxLayout(information, BoxLayout.Y_AXIS));
 
-                boolean read = emailDAO.isRead(
-                                email.getId(),
-                                getUserEmail());
-
                 JLabel sender = new JLabel(email.getSender());
                 sender.setFont(new Font(
                                 "Segoe UI",
                                 read ? Font.PLAIN : Font.BOLD,
                                 14));
+                sender.setForeground(read
+                                ? new Color(148, 163, 184)
+                                : new Color(30, 41, 59));
 
                 String subjectText = email.getSubject();
                 if (subjectText == null || subjectText.trim().isEmpty()) {
@@ -417,11 +395,13 @@ public class MainMailGUI extends JFrame {
                 }
 
                 JLabel subject = new JLabel(subjectText);
-                subject.setForeground(TEXT_SECONDARY);
                 subject.setFont(new Font(
                                 "Segoe UI",
                                 read ? Font.PLAIN : Font.BOLD,
                                 13));
+                subject.setForeground(read
+                                ? new Color(148, 163, 184)
+                                : new Color(37, 99, 235));
 
                 String content = email.getContent();
                 if (content == null)
@@ -432,8 +412,10 @@ public class MainMailGUI extends JFrame {
                 }
 
                 JLabel preview = new JLabel(content);
-                preview.setForeground(new Color(148, 163, 184));
                 preview.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                preview.setForeground(read
+                                ? new Color(203, 213, 225)
+                                : new Color(100, 116, 139));
 
                 information.add(sender);
                 information.add(Box.createVerticalStrut(3));
@@ -516,12 +498,12 @@ public class MainMailGUI extends JFrame {
 
                         @Override
                         public void mouseEntered(MouseEvent e) {
-                                item.setBackground(new Color(248, 250, 252));
+                                item.setBackground(HOVER_BG);
                         }
 
                         @Override
                         public void mouseExited(MouseEvent e) {
-                                item.setBackground(Color.WHITE);
+                                item.setBackground(NORMAL_BG);
                         }
 
                         @Override
@@ -544,12 +526,12 @@ public class MainMailGUI extends JFrame {
 
                         @Override
                         public void mouseEntered(MouseEvent e) {
-                                item.setBackground(new Color(248, 250, 252));
+                                item.setBackground(HOVER_BG);
                         }
 
                         @Override
                         public void mouseExited(MouseEvent e) {
-                                item.setBackground(Color.WHITE);
+                                item.setBackground(NORMAL_BG);
                         }
                 });
 
@@ -580,8 +562,6 @@ public class MainMailGUI extends JFrame {
                         ex.printStackTrace();
                 }
 
-                // Fallback: nếu server không trả conversation thì ít nhất vẫn hiển thị mail
-                // đang chọn.
                 if (conversation.isEmpty()) {
                         conversation.add(email);
                 }
@@ -591,11 +571,9 @@ public class MainMailGUI extends JFrame {
 
                 String myEmail = getUserEmail();
 
-                // ===== WRAPPER =====
                 JPanel main = new JPanel(new BorderLayout());
                 main.setOpaque(false);
 
-                // ===== HEADER =====
                 JPanel header = new JPanel(new BorderLayout(15, 0));
                 header.setOpaque(false);
                 header.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
@@ -625,7 +603,6 @@ public class MainMailGUI extends JFrame {
                 leftHeader.add(title);
                 header.add(leftHeader, BorderLayout.WEST);
 
-                // ===== CHAT AREA =====
                 JPanel chatPanel = new JPanel();
                 chatPanel.setLayout(new BoxLayout(chatPanel, BoxLayout.Y_AXIS));
                 chatPanel.setOpaque(false);
@@ -636,6 +613,15 @@ public class MainMailGUI extends JFrame {
                                         && message.getSender().equalsIgnoreCase(myEmail);
                         JPanel bubble = createChatBubble(message, isMine);
                         chatPanel.add(bubble);
+
+                        // ⭐ HIỂN THỊ ATTACHMENTS
+                        if (message.getAttachments() != null
+                                        && !message.getAttachments().isEmpty()) {
+                                JPanel attPanel = createAttachmentsPanel(
+                                                message.getAttachments(), isMine);
+                                chatPanel.add(attPanel);
+                        }
+
                         chatPanel.add(Box.createVerticalStrut(14));
                 }
 
@@ -645,7 +631,6 @@ public class MainMailGUI extends JFrame {
                 scroll.getViewport().setOpaque(false);
                 scroll.getVerticalScrollBar().setUnitIncrement(16);
 
-                // ===== BOTTOM (REPLY / DELETE) =====
                 JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
                 bottom.setOpaque(false);
                 bottom.setBorder(BorderFactory.createEmptyBorder(15, 0, 0, 0));
@@ -708,7 +693,6 @@ public class MainMailGUI extends JFrame {
                 bottom.add(reply);
                 bottom.add(delete);
 
-                // ===== LẮP RÁP =====
                 JPanel centerWrapper = new JPanel(new BorderLayout());
                 centerWrapper.setOpaque(false);
                 centerWrapper.add(scroll, BorderLayout.CENTER);
@@ -723,18 +707,15 @@ public class MainMailGUI extends JFrame {
 
         private JPanel createChatBubble(Email email, boolean isMine) {
 
-                // Wrapper căn trái/phải
                 JPanel wrapper = new JPanel(new FlowLayout(
                                 isMine ? FlowLayout.RIGHT : FlowLayout.LEFT, 0, 0));
                 wrapper.setOpaque(false);
                 wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-                // ==== CỘT DỌC: Bubble + Timestamp ====
                 JPanel column = new JPanel();
                 column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
                 column.setOpaque(false);
 
-                // ==== LABEL "You → ..." hoặc "From: ..." ====
                 String headText;
                 if (isMine) {
                         headText = "You → " + safeText(email.getReceiver());
@@ -752,12 +733,11 @@ public class MainMailGUI extends JFrame {
                                 : Component.LEFT_ALIGNMENT);
                 headLabel.setBorder(BorderFactory.createEmptyBorder(0, 6, 4, 6));
 
-                // ==== BONG BÓNG ====
                 JPanel bubble = new JPanel();
                 bubble.setLayout(new BoxLayout(bubble, BoxLayout.Y_AXIS));
                 bubble.setBackground(isMine
-                                ? new Color(219, 234, 254) // Xanh nhạt (self)
-                                : Color.WHITE); // Trắng (other)
+                                ? new Color(219, 234, 254)
+                                : Color.WHITE);
                 bubble.setBorder(BorderFactory.createCompoundBorder(
                                 BorderFactory.createLineBorder(
                                                 isMine ? new Color(191, 219, 254) : new Color(226, 232, 240),
@@ -767,7 +747,6 @@ public class MainMailGUI extends JFrame {
                                 ? Component.RIGHT_ALIGNMENT
                                 : Component.LEFT_ALIGNMENT);
 
-                // Subject (nếu khác rỗng)
                 String subject = email.getSubject();
                 if (subject != null && !subject.trim().isEmpty()
                                 && !subject.equalsIgnoreCase("(No subject)")) {
@@ -781,7 +760,6 @@ public class MainMailGUI extends JFrame {
                         bubble.add(Box.createVerticalStrut(6));
                 }
 
-                // Nội dung email
                 String content = email.getContent() == null ? "" : email.getContent();
                 JTextArea body = new JTextArea(content);
                 body.setFont(new Font("Segoe UI", Font.PLAIN, 14));
@@ -796,7 +774,6 @@ public class MainMailGUI extends JFrame {
 
                 bubble.add(body);
 
-                // ==== TIMESTAMP ====
                 JLabel timeLabel = new JLabel("#" + email.getId());
                 timeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
                 timeLabel.setForeground(new Color(148, 163, 184));
@@ -826,6 +803,8 @@ public class MainMailGUI extends JFrame {
                 e.setId(raw.messageId > 0 ? raw.messageId : raw.number);
                 e.setThreadId(raw.threadId);
                 e.setInReplyTo(raw.inReplyTo);
+                e.setRead(raw.isRead);
+                e.setAttachments(raw.attachments);
                 return e;
         }
 
@@ -949,7 +928,6 @@ public class MainMailGUI extends JFrame {
                                                                 "SMTP",
                                                                 JOptionPane.INFORMATION_MESSAGE);
 
-                                                // Sau khi gửi xong, mở lại đúng conversation.
                                                 showEmailDetail(target);
                                         } else {
                                                 JOptionPane.showMessageDialog(
@@ -1016,12 +994,10 @@ public class MainMailGUI extends JFrame {
                 messageLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
                 JTextArea message = new JTextArea();
-                // message.setFont(new Font("Segoe UI", Font.PLAIN, 14));
                 Font emojiFont = new Font("Segoe UI Emoji", Font.PLAIN, 14);
                 if (emojiFont.getFamily().equals("Segoe UI Emoji")) {
                         message.setFont(emojiFont);
                 } else {
-                        // fallback cho Linux/Mac
                         message.setFont(new Font("Segoe UI", Font.PLAIN, 14));
                 }
                 message.setForeground(TEXT);
@@ -1039,6 +1015,101 @@ public class MainMailGUI extends JFrame {
                 form.add(messageScroll);
                 form.add(Box.createVerticalStrut(18));
 
+                // ============ ATTACHMENT PANEL ============
+                JLabel attachLabel = createLabel("Attachments");
+                attachLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                form.add(attachLabel);
+                form.add(Box.createVerticalStrut(7));
+
+                JPanel attachPanel = new JPanel();
+                attachPanel.setLayout(new BoxLayout(attachPanel, BoxLayout.Y_AXIS));
+                attachPanel.setOpaque(false);
+                attachPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+                JPanel fileListPanel = new JPanel();
+                fileListPanel.setLayout(new BoxLayout(fileListPanel, BoxLayout.Y_AXIS));
+                fileListPanel.setOpaque(false);
+                fileListPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+                JScrollPane fileScroll = new JScrollPane(fileListPanel);
+                fileScroll.setBorder(BorderFactory.createLineBorder(BORDER));
+                fileScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+                fileScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
+                fileScroll.setPreferredSize(new Dimension(400, 100));
+
+                List<java.io.File> selectedFiles = new ArrayList<>();
+
+                RoundedButton attachButton = new RoundedButton(
+                                "ATTACH FILE", new Color(241, 245, 249), new Color(226, 232, 240));
+                attachButton.setForeground(TEXT);
+                attachButton.setPreferredSize(new Dimension(160, 40));
+                attachButton.setMaximumSize(new Dimension(160, 40));
+                attachButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+                attachButton.addActionListener(e -> {
+                        javax.swing.JFileChooser chooser = new javax.swing.JFileChooser();
+                        chooser.setMultiSelectionEnabled(true);
+                        chooser.setDialogTitle("Chọn file đính kèm");
+
+                        int result = chooser.showOpenDialog(this);
+                        if (result != javax.swing.JFileChooser.APPROVE_OPTION)
+                                return;
+
+                        java.io.File[] files = chooser.getSelectedFiles();
+
+                        for (java.io.File f : files) {
+                                if (f.length() > 10 * 1024 * 1024) {
+                                        JOptionPane.showMessageDialog(this,
+                                                        "File quá lớn (max 10MB): " + f.getName());
+                                        continue;
+                                }
+
+                                if (selectedFiles.contains(f))
+                                        continue;
+
+                                selectedFiles.add(f);
+
+                                JPanel row = new JPanel(new BorderLayout(8, 0));
+                                row.setOpaque(false);
+                                row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+                                row.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+                                JLabel nameLbl = new JLabel("" + f.getName()
+                                                + "  (" + (f.length() / 1024) + " KB)");
+                                nameLbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                                nameLbl.setForeground(TEXT);
+
+                                JButton removeBtn = new JButton("X");
+                                removeBtn.setForeground(new Color(220, 38, 38));
+                                removeBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                                removeBtn.setFocusPainted(false);
+                                removeBtn.setBorderPainted(false);
+                                removeBtn.setContentAreaFilled(false);
+                                removeBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+                                removeBtn.addActionListener(ev -> {
+                                        selectedFiles.remove(f);
+                                        fileListPanel.remove(row);
+                                        fileListPanel.revalidate();
+                                        fileListPanel.repaint();
+                                });
+
+                                row.add(nameLbl, BorderLayout.CENTER);
+                                row.add(removeBtn, BorderLayout.EAST);
+                                fileListPanel.add(row);
+                        }
+
+                        fileListPanel.revalidate();
+                        fileListPanel.repaint();
+                });
+
+                attachPanel.add(attachButton);
+                attachPanel.add(Box.createVerticalStrut(8));
+                attachPanel.add(fileScroll);
+
+                form.add(attachPanel);
+                form.add(Box.createVerticalStrut(18));
+
                 RoundedButton send = new RoundedButton("SEND MAIL", PRIMARY, PRIMARY_HOVER);
                 send.setPreferredSize(new Dimension(150, 44));
                 send.setMaximumSize(new Dimension(150, 44));
@@ -1047,7 +1118,6 @@ public class MainMailGUI extends JFrame {
                 form.add(send);
 
                 send.addActionListener(e -> {
-
                         List<String> recipients = parseRecipients(receiver.getText());
                         String sub = subject.getText().trim();
                         String msg = message.getText().trim();
@@ -1083,35 +1153,35 @@ public class MainMailGUI extends JFrame {
                         send.setEnabled(false);
                         send.setText("SENDING...");
 
+                        List<java.io.File> filesToSend = new ArrayList<>(selectedFiles);
+
                         new Thread(() -> {
 
-                                boolean success = sendSMTPMail(recipients, sub, msg);
+                                boolean success = sendSMTPMailWithAttachments(
+                                                recipients, sub, msg, filesToSend);
 
                                 SwingUtilities.invokeLater(() -> {
-
                                         send.setEnabled(true);
                                         send.setText("SEND MAIL");
 
                                         if (success) {
-                                                JOptionPane.showMessageDialog(this,
-                                                                "Email sent successfully!",
-                                                                "SMTP",
-                                                                JOptionPane.INFORMATION_MESSAGE);
+                                                JOptionPane.showMessageDialog(this, "Email sent successfully!");
                                                 receiver.setText("");
                                                 subject.setText("");
                                                 message.setText("");
+                                                selectedFiles.clear();
+                                                fileListPanel.removeAll();
+                                                fileListPanel.revalidate();
+                                                fileListPanel.repaint();
                                         } else {
                                                 JOptionPane.showMessageDialog(this,
-                                                                "Cannot send email.\n"
-                                                                                + "Please check whether SMTP Server is running.",
-                                                                "SMTP Error",
-                                                                JOptionPane.ERROR_MESSAGE);
+                                                                "Cannot send email. Please check SMTP Server.",
+                                                                "SMTP Error", JOptionPane.ERROR_MESSAGE);
                                         }
                                 });
 
                         }).start();
                 });
-
                 card.add(form, BorderLayout.CENTER);
                 contentPanel.add(card, BorderLayout.CENTER);
                 refreshUI();
@@ -1149,6 +1219,112 @@ public class MainMailGUI extends JFrame {
                                 content,
                                 0,
                                 null);
+        }
+
+        // =========================================================
+        // SMTP SEND - WITH ATTACHMENTS (⭐ FIX: Attachment TRƯỚC blank line)
+        // =========================================================
+
+        private boolean sendSMTPMailWithAttachments(
+                        List<String> receivers,
+                        String subject,
+                        String content,
+                        List<File> files) {
+
+                if (receivers == null || receivers.isEmpty())
+                        return false;
+
+                final String SMTP_HOST = ServerConfig.getServerHost();
+                final int SMTP_PORT = ServerConfig.SMTP_PORT;
+                String sender = getUserEmail();
+
+                // ============ BƯỚC 1: UPLOAD TẤT CẢ FILE ============
+                List<POP3Client.AttachmentMeta> uploaded = new ArrayList<>();
+                try {
+                        POP3Client uploader = new POP3Client(username, password);
+                        for (File f : files) {
+                                String ct = Files.probeContentType(f.toPath());
+                                if (ct == null)
+                                        ct = "application/octet-stream";
+
+                                byte[] data = Files.readAllBytes(f.toPath());
+                                int attId = uploader.uploadAttachment(f.getName(), ct, data);
+
+                                uploaded.add(new POP3Client.AttachmentMeta(
+                                                attId, f.getName(), ct, data.length));
+                        }
+                } catch (Exception ex) {
+                        System.err.println("Upload attachment failed: " + ex.getMessage());
+                        ex.printStackTrace();
+                        return false;
+                }
+
+                // ============ BƯỚC 2: GỬI SMTP ============
+                try (
+                                Socket socket = new Socket(SMTP_HOST, SMTP_PORT);
+                                BufferedReader reader = new BufferedReader(
+                                                new InputStreamReader(socket.getInputStream()));
+                                PrintWriter writer = new PrintWriter(
+                                                socket.getOutputStream(), true)) {
+
+                        String response = reader.readLine();
+                        if (response == null || !response.startsWith("220"))
+                                return false;
+
+                        writer.println("HELO localhost");
+                        response = reader.readLine();
+                        if (response == null || !response.startsWith("250"))
+                                return false;
+
+                        writer.println("MAIL FROM: " + sender);
+                        response = reader.readLine();
+                        if (response == null || !response.startsWith("250"))
+                                return false;
+
+                        for (String receiver : receivers) {
+                                writer.println("RCPT TO: " + receiver);
+                                response = reader.readLine();
+                                if (response == null || !response.startsWith("250"))
+                                        return false;
+                        }
+
+                        writer.println("DATA");
+                        response = reader.readLine();
+                        if (response == null || !response.startsWith("354"))
+                                return false;
+
+                        // ⭐⭐ HEADERS — GỬI TRƯỚC BLANK LINE ⭐⭐
+                        writer.println("Subject: " + subject);
+
+                        for (POP3Client.AttachmentMeta att : uploaded) {
+                                writer.println("Attachment: " + att.id
+                                                + "|" + att.filename
+                                                + "|" + att.contentType
+                                                + "|" + att.size);
+                        }
+
+                        writer.println(); // ← blank line SAU KHI đã gửi hết header
+
+                        // ============ BODY ============
+                        String[] lines = content.split("\\R", -1);
+                        for (String line : lines) {
+                                writer.println(line.startsWith(".") ? "." + line : line);
+                        }
+
+                        writer.println("<END>");
+                        response = reader.readLine();
+                        if (response == null || !response.startsWith("250"))
+                                return false;
+
+                        writer.println("QUIT");
+                        response = reader.readLine();
+                        return response != null && response.startsWith("221");
+
+                } catch (Exception e) {
+                        System.out.println("SMTP connection error: " + e.getMessage());
+                        e.printStackTrace();
+                        return false;
+                }
         }
 
         // =========================================================
@@ -1197,40 +1373,29 @@ public class MainMailGUI extends JFrame {
                                                 socket.getOutputStream(), true)) {
 
                         String response = reader.readLine();
-                        System.out.println("SMTP << " + response);
                         if (response == null || !response.startsWith("220"))
                                 return false;
 
                         writer.println("HELO localhost");
-                        System.out.println("SMTP >> HELO localhost");
                         response = reader.readLine();
-                        System.out.println("SMTP << " + response);
                         if (response == null || !response.startsWith("250"))
                                 return false;
 
                         writer.println("MAIL FROM: " + sender);
-                        System.out.println("SMTP >> MAIL FROM: " + sender);
                         response = reader.readLine();
-                        System.out.println("SMTP << " + response);
                         if (response == null || !response.startsWith("250"))
                                 return false;
 
-                        // Gửi nhiều RCPT TO trên cùng một phiên SMTP.
                         for (String receiver : receivers) {
                                 writer.println("RCPT TO: " + receiver);
-                                System.out.println("SMTP >> RCPT TO: " + receiver);
                                 response = reader.readLine();
-                                System.out.println("SMTP << " + response);
-
                                 if (response == null || !response.startsWith("250")) {
                                         return false;
                                 }
                         }
 
                         writer.println("DATA");
-                        System.out.println("SMTP >> DATA");
                         response = reader.readLine();
-                        System.out.println("SMTP << " + response);
                         if (response == null || !response.startsWith("354"))
                                 return false;
 
@@ -1257,14 +1422,11 @@ public class MainMailGUI extends JFrame {
 
                         writer.println("<END>");
                         response = reader.readLine();
-                        System.out.println("SMTP << " + response);
                         if (response == null || !response.startsWith("250"))
                                 return false;
 
                         writer.println("QUIT");
-                        System.out.println("SMTP >> QUIT");
                         response = reader.readLine();
-                        System.out.println("SMTP << " + response);
                         return response != null && response.startsWith("221");
 
                 } catch (Exception e) {
@@ -1299,9 +1461,6 @@ public class MainMailGUI extends JFrame {
                 return recipients;
         }
 
-        /**
-         * Lấy inbox qua POP3.
-         */
         private List<Email> fetchInboxViaPOP3() {
                 List<Email> result = new ArrayList<>();
 
@@ -1320,10 +1479,6 @@ public class MainMailGUI extends JFrame {
                 return result;
         }
 
-        /**
-         * Lấy Sent mail qua POP3 (command tùy chỉnh SENT + RTRS).
-         * Thay thế cho emailDAO.getSentMails() để đúng kiến trúc client-server.
-         */
         private List<Email> fetchSentViaPOP3() {
                 List<Email> result = new ArrayList<>();
 
@@ -1439,7 +1594,6 @@ public class MainMailGUI extends JFrame {
                 panel.setMaximumSize(
                                 new Dimension(Integer.MAX_VALUE, 90));
 
-                // STAR BUTTON
                 JButton starButton = new JButton("★");
 
                 starButton.setFont(
@@ -1467,7 +1621,6 @@ public class MainMailGUI extends JFrame {
 
                 panel.add(starButton, BorderLayout.WEST);
 
-                // INFORMATION
                 JPanel info = new JPanel();
 
                 info.setOpaque(false);
@@ -1523,7 +1676,6 @@ public class MainMailGUI extends JFrame {
 
                 panel.add(info, BorderLayout.CENTER);
 
-                // EMAIL ID
                 JLabel id = new JLabel(
                                 "#" + email.getId());
 
@@ -1535,7 +1687,6 @@ public class MainMailGUI extends JFrame {
 
                 panel.add(id, BorderLayout.EAST);
 
-                // CLICK TO OPEN EMAIL
                 MouseAdapter adapter = new MouseAdapter() {
 
                         @Override
@@ -1552,7 +1703,6 @@ public class MainMailGUI extends JFrame {
                         @Override
                         public void mouseClicked(MouseEvent e) {
 
-                                // Không mở khi click vào nút Star
                                 if (e.getSource() != starButton) {
                                         showEmailDetail(email);
                                 }
@@ -1578,6 +1728,7 @@ public class MainMailGUI extends JFrame {
                         return new ArrayList<>();
                 }
         }
+
         // =========================================================
         // SENT
         // =========================================================
@@ -1589,7 +1740,6 @@ public class MainMailGUI extends JFrame {
 
                 JPanel card = createCard();
 
-                // HEADER
                 JPanel cardHeader = new JPanel(new BorderLayout());
                 cardHeader.setOpaque(false);
 
@@ -1609,13 +1759,11 @@ public class MainMailGUI extends JFrame {
                 cardHeader.add(refresh, BorderLayout.EAST);
                 card.add(cardHeader, BorderLayout.NORTH);
 
-                // EMAIL LIST
                 JPanel emailList = new JPanel();
                 emailList.setOpaque(false);
                 emailList.setLayout(new BoxLayout(emailList, BoxLayout.Y_AXIS));
 
                 try {
-                        // === DÙNG POP3 (thay vì emailDAO) ===
                         List<Email> emails = fetchSentViaPOP3();
 
                         if (emails == null || emails.isEmpty()) {
@@ -1794,28 +1942,24 @@ public class MainMailGUI extends JFrame {
         private void showTrash() {
                 setPageTitle("Trash");
                 contentPanel.removeAll();
-                // Thêm padding cho toàn bộ content panel để đẹp hơn
                 contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
 
-                // --- HEADER ---
                 JPanel header = new JPanel(new BorderLayout());
                 header.setOpaque(false);
-                header.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0)); // Khoảng cách dưới header
+                header.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
 
                 JLabel title = new JLabel("Trash");
                 title.setFont(new Font("Segoe UI", Font.BOLD, 28));
                 title.setForeground(TEXT);
 
-                // Nút Refresh làm nhỏ lại và tinh tế hơn
                 RoundedButton refresh = new RoundedButton("REFRESH", PRIMARY, Color.WHITE);
-                refresh.setPreferredSize(new Dimension(100, 35)); // Kích thước nút
+                refresh.setPreferredSize(new Dimension(100, 35));
                 refresh.setFont(new Font("Segoe UI", Font.BOLD, 12));
                 refresh.addActionListener(e -> showTrash());
 
                 header.add(title, BorderLayout.WEST);
                 header.add(refresh, BorderLayout.EAST);
 
-                // --- LIST EMAIL ---
                 JPanel emailList = new JPanel();
                 emailList.setLayout(new BoxLayout(emailList, BoxLayout.Y_AXIS));
                 emailList.setBackground(BACKGROUND);
@@ -1831,7 +1975,7 @@ public class MainMailGUI extends JFrame {
 
                                 JLabel emptyIcon = new JLabel("Trash is empty");
                                 emptyIcon.setFont(new Font("Segoe UI", Font.BOLD, 18));
-                                emptyIcon.setForeground(new Color(148, 163, 184)); // Màu xám nhạt
+                                emptyIcon.setForeground(new Color(148, 163, 184));
                                 emptyIcon.setAlignmentX(Component.CENTER_ALIGNMENT);
                                 emptyPanel.add(emptyIcon);
 
@@ -1840,7 +1984,7 @@ public class MainMailGUI extends JFrame {
                                 for (Email email : emails) {
                                         JPanel item = createTrashEmailItem(email);
                                         emailList.add(item);
-                                        emailList.add(Box.createVerticalStrut(12)); // Khoảng cách giữa các item
+                                        emailList.add(Box.createVerticalStrut(12));
                                 }
                         }
 
@@ -1859,7 +2003,6 @@ public class MainMailGUI extends JFrame {
                 contentPanel.add(header, BorderLayout.NORTH);
                 contentPanel.add(scrollPane, BorderLayout.CENTER);
 
-                // QUAN TRỌNG: Gọi refreshUI để cập nhật giao diện ngay lập tức
                 refreshUI();
                 contentPanel.revalidate();
                 contentPanel.repaint();
@@ -2074,6 +2217,159 @@ public class MainMailGUI extends JFrame {
                         new MailClientGUI().setVisible(true);
                         dispose();
                 }
+        }
+
+        // =========================================================
+        // ATTACHMENTS PANEL
+        // =========================================================
+
+        private JPanel createAttachmentsPanel(
+                        List<POP3Client.AttachmentMeta> attachments,
+                        boolean isMine) {
+
+                JPanel panel = new JPanel();
+                panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+                panel.setOpaque(false);
+                panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                panel.setBorder(BorderFactory.createEmptyBorder(5, 20, 5, 20));
+
+                for (POP3Client.AttachmentMeta att : attachments) {
+
+                        JPanel row = new JPanel(new BorderLayout(10, 0));
+                        row.setBackground(new Color(248, 250, 252));
+                        row.setBorder(BorderFactory.createCompoundBorder(
+                                        BorderFactory.createLineBorder(BORDER),
+                                        new EmptyBorder(8, 12, 8, 12)));
+                        row.setMaximumSize(new Dimension(500, 50));
+                        row.setAlignmentX(isMine
+                                        ? Component.RIGHT_ALIGNMENT
+                                        : Component.LEFT_ALIGNMENT);
+
+                        String icon = getFileIcon(att.contentType);
+
+                        JLabel iconLbl = new JLabel(icon);
+                        iconLbl.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 20));
+
+                        JLabel nameLbl = new JLabel(
+                                        att.filename + "  (" + att.getReadableSize() + ")");
+                        nameLbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                        nameLbl.setForeground(TEXT);
+
+                        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+                        left.setOpaque(false);
+                        left.add(iconLbl);
+                        left.add(nameLbl);
+
+                        RoundedButton downloadBtn = new RoundedButton(
+                                        "⬇ DOWNLOAD",
+                                        PRIMARY,
+                                        PRIMARY_HOVER);
+                        downloadBtn.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                        downloadBtn.setPreferredSize(new Dimension(120, 32));
+                        downloadBtn.setMaximumSize(new Dimension(120, 32));
+
+                        downloadBtn.addActionListener(e -> downloadAttachment(att));
+
+                        row.add(left, BorderLayout.CENTER);
+                        row.add(downloadBtn, BorderLayout.EAST);
+
+                        panel.add(row);
+                        panel.add(Box.createVerticalStrut(6));
+                }
+
+                return panel;
+        }
+
+        // =========================================================
+        // ICON THEO LOẠI FILE
+        // =========================================================
+
+        private String getFileIcon(String contentType) {
+
+                if (contentType == null)
+                        return "📎";
+
+                if (contentType.startsWith("image/"))
+                        return "🖼";
+
+                if (contentType.startsWith("video/"))
+                        return "🎬";
+
+                if (contentType.startsWith("audio/"))
+                        return "🎵";
+
+                if (contentType.contains("pdf"))
+                        return "📕";
+
+                if (contentType.contains("zip")
+                                || contentType.contains("rar")
+                                || contentType.contains("tar"))
+                        return "🗜";
+
+                if (contentType.contains("word")
+                                || contentType.contains("document"))
+                        return "📘";
+
+                if (contentType.contains("excel")
+                                || contentType.contains("spreadsheet"))
+                        return "📗";
+
+                if (contentType.contains("powerpoint")
+                                || contentType.contains("presentation"))
+                        return "📙";
+
+                if (contentType.startsWith("text/"))
+                        return "📄";
+
+                return "📎";
+        }
+
+        // =========================================================
+        // DOWNLOAD ATTACHMENT
+        // =========================================================
+
+        private void downloadAttachment(POP3Client.AttachmentMeta att) {
+
+                JFileChooser chooser = new JFileChooser();
+                chooser.setDialogTitle("Lưu file: " + att.filename);
+                chooser.setSelectedFile(new File(att.filename));
+
+                int result = chooser.showSaveDialog(this);
+                if (result != JFileChooser.APPROVE_OPTION)
+                        return;
+
+                File target = chooser.getSelectedFile();
+
+                new Thread(() -> {
+
+                        try {
+                                POP3Client client = new POP3Client(username, password);
+                                byte[] data = client.downloadAttachment(att.id);
+
+                                Files.write(target.toPath(), data);
+
+                                SwingUtilities.invokeLater(() -> {
+                                        JOptionPane.showMessageDialog(
+                                                        this,
+                                                        "Đã lưu file:\n" + target.getAbsolutePath(),
+                                                        "Download thành công",
+                                                        JOptionPane.INFORMATION_MESSAGE);
+                                });
+
+                        } catch (Exception ex) {
+
+                                ex.printStackTrace();
+
+                                SwingUtilities.invokeLater(() -> {
+                                        JOptionPane.showMessageDialog(
+                                                        this,
+                                                        "Lỗi tải file:\n" + ex.getMessage(),
+                                                        "Download lỗi",
+                                                        JOptionPane.ERROR_MESSAGE);
+                                });
+                        }
+
+                }).start();
         }
 
         // =========================================================

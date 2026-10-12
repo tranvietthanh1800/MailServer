@@ -1,6 +1,10 @@
 package com.mailserver.model;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.mailserver.client.POP3Client;
 
 public class Email {
 
@@ -23,6 +27,14 @@ public class Email {
     private int threadId;
 
     private Integer inReplyTo;
+
+    // ==========================================
+    // ⭐ ATTACHMENT + STARRED (MỚI)
+    // ==========================================
+
+    private boolean starred = false;
+
+    private List<POP3Client.AttachmentMeta> attachments = new ArrayList<>();
 
     // ==========================================
     // CONSTRUCTOR
@@ -130,5 +142,29 @@ public class Email {
 
     public void setInReplyTo(Integer inReplyTo) {
         this.inReplyTo = inReplyTo;
+    }
+
+    // ==========================================
+    // ⭐ STARRED GETTER / SETTER
+    // ==========================================
+
+    public boolean isStarred() {
+        return starred;
+    }
+
+    public void setStarred(boolean starred) {
+        this.starred = starred;
+    }
+
+    // ==========================================
+    // ⭐ ATTACHMENTS GETTER / SETTER
+    // ==========================================
+
+    public List<POP3Client.AttachmentMeta> getAttachments() {
+        return attachments;
+    }
+
+    public void setAttachments(List<POP3Client.AttachmentMeta> attachments) {
+        this.attachments = attachments;
     }
 }

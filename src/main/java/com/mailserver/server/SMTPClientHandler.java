@@ -7,7 +7,9 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.mailserver.dao.AttachmentDAO;
 import com.mailserver.dao.EmailDAO;
+import com.mailserver.model.Attachment;
 import com.mailserver.model.Email;
 
 public class SMTPClientHandler implements Runnable {
@@ -31,6 +33,7 @@ public class SMTPClientHandler implements Runnable {
                                                 true)) {
 
                         EmailDAO emailDAO = new EmailDAO();
+                        AttachmentDAO attachmentDAO = new AttachmentDAO();
 
                         // SMTP greeting
                         writer.println("220 MAIL SERVER SMTP READY");
@@ -98,91 +101,79 @@ public class SMTPClientHandler implements Runnable {
 
                                 else if (command.equalsIgnoreCase("DATA")) {
 
-                                        writer.println(
-                                                        "354 End data with <END>");
+                                        writer.println("354 End data with <END>");
 
                                         String subject = "";
                                         StringBuilder content = new StringBuilder();
-
                                         int threadId = 0;
                                         Integer inReplyTo = null;
-
                                         boolean bodyStarted = false;
+
+                                        // ⭐ Chỉ lưu metadata attachment (đã upload qua PUTATT)
+                                        List<Attachment> attachments = new ArrayList<>();
 
                                         while ((line = reader.readLine()) != null) {
 
-                                                if (line.equals("<END>")) {
+                                                if (line.equals("<END>"))
                                                         break;
+
+                                                // ========== Attachment metadata ==========
+                                                // Format mới: Attachment: attId|filename|contentType|size
+                                                // ========== Attachment metadata ==========
+                                                // Parse BẤT KỂ vị trí (header hay body)
+                                                if (line.startsWith("Attachment:")) {
+                                                        String meta = line.substring("Attachment:".length()).trim();
+                                                        String[] parts = meta.split("\\|");
+                                                        if (parts.length >= 4) {
+                                                                try {
+                                                                        int attId = Integer.parseInt(parts[0]);
+                                                                        Attachment att = new Attachment();
+                                                                        att.setId(attId);
+                                                                        att.setFilename(parts[1]);
+                                                                        att.setContentType(parts[2]);
+                                                                        att.setFileSize(Integer.parseInt(parts[3]));
+                                                                        attachments.add(att);
+                                                                } catch (NumberFormatException ignored) {
+                                                                }
+                                                        }
+                                                        continue; // ⭐ Bỏ qua, không append vào body
                                                 }
 
-                                                // ==============================================
-                                                // SUBJECT
-                                                // ==============================================
-
-                                                if (!bodyStarted &&
-                                                                line.startsWith("Subject:")) {
-
-                                                        subject = line.substring(
-                                                                        "Subject:".length()).trim();
-
+                                                // ========== Subject ==========
+                                                if (!bodyStarted && line.startsWith("Subject:")) {
+                                                        subject = line.substring("Subject:".length()).trim();
                                                         continue;
                                                 }
 
-                                                // ==============================================
-                                                // THREAD-ID
-                                                // ==============================================
-
-                                                if (!bodyStarted &&
-                                                                line.startsWith("Thread-ID:")) {
-
+                                                // ========== Thread-ID ==========
+                                                if (!bodyStarted && line.startsWith("Thread-ID:")) {
                                                         try {
-
                                                                 threadId = Integer.parseInt(
-                                                                                line.substring(
-                                                                                                "Thread-ID:".length()).trim());
-
+                                                                                line.substring("Thread-ID:".length())
+                                                                                                .trim());
                                                         } catch (NumberFormatException ex) {
-
                                                                 threadId = 0;
                                                         }
-
                                                         continue;
                                                 }
 
-                                                // ==============================================
-                                                // IN-REPLY-TO
-                                                // ==============================================
-
-                                                if (!bodyStarted &&
-                                                                line.startsWith("In-Reply-To:")) {
-
+                                                // ========== In-Reply-To ==========
+                                                if (!bodyStarted && line.startsWith("In-Reply-To:")) {
                                                         try {
-
                                                                 int replyId = Integer.parseInt(
-                                                                                line.substring(
-                                                                                                "In-Reply-To:".length()).trim());
-
-                                                                if (replyId > 0) {
+                                                                                line.substring("In-Reply-To:".length())
+                                                                                                .trim());
+                                                                if (replyId > 0)
                                                                         inReplyTo = replyId;
-                                                                }
-
                                                         } catch (NumberFormatException ex) {
-
                                                                 inReplyTo = null;
                                                         }
-
                                                         continue;
                                                 }
 
-                                                // ==============================================
-                                                // BODY
-                                                // ==============================================
-
+                                                // ========== Body ==========
                                                 bodyStarted = true;
-
-                                                content
-                                                                .append(line)
-                                                                .append("\n");
+                                                content.append(line).append("\n");
                                         }
 
                                         if (sender == null || sender.isBlank() || receivers.isEmpty()) {
@@ -195,23 +186,32 @@ public class SMTPClientHandler implements Runnable {
 
                                         for (String recipient : receivers) {
 
-                                                Email email = new Email(
-                                                                sender,
-                                                                recipient,
-                                                                subject,
+                                                Email email = new Email(sender, recipient, subject,
                                                                 content.toString().trim());
-
                                                 email.setThreadId(sharedThreadId);
                                                 email.setInReplyTo(inReplyTo);
 
-                                                boolean saved = emailDAO.sendEmail(email);
+                                                int newEmailId = emailDAO.sendEmail(email);
 
-                                                if (!saved) {
+                                                if (newEmailId <= 0) {
                                                         success = false;
                                                         break;
                                                 }
 
-                                                // Mail mới gửi cho nhiều người phải dùng chung 1 thread.
+                                                email.setId(newEmailId);
+
+                                                // ⭐ LINK ATTACHMENT ĐÃ UPLOAD VÀO EMAIL
+                                                for (Attachment att : attachments) {
+                                                        boolean ok = attachmentDAO.linkToEmail(
+                                                                        att.getId(),
+                                                                        newEmailId);
+                                                        if (!ok) {
+                                                                System.out.println("Failed to link attachment: "
+                                                                                + att.getFilename()
+                                                                                + " (id=" + att.getId() + ")");
+                                                        }
+                                                }
+
                                                 if (sharedThreadId <= 0) {
                                                         sharedThreadId = email.getThreadId();
                                                 }
@@ -225,7 +225,6 @@ public class SMTPClientHandler implements Runnable {
 
                                         continue;
                                 }
-
                                 // =========================
                                 // QUIT
                                 // =========================
@@ -251,7 +250,7 @@ public class SMTPClientHandler implements Runnable {
                 } catch (Exception e) {
 
                         System.out.println(
-                                        "SMTP client disconnected.");
+                                        "SMTP client disconnected: " + e.getMessage());
 
                 } finally {
 

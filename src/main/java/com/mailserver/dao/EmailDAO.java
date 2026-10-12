@@ -19,7 +19,10 @@ public class EmailDAO {
     // SEND EMAIL
     // =========================================================
 
-    public boolean sendEmail(Email email) {
+    /**
+     * Trả về ID email vừa insert, hoặc -1 nếu lỗi.
+     */
+    public int sendEmail(Email email) {
 
         String sql = """
                 INSERT INTO emails
@@ -49,84 +52,53 @@ public class EmailDAO {
             ps.setBoolean(5, false);
             ps.setBoolean(6, false);
 
-            /*
-             * Nếu là mail mới:
-             * threadId = 0
-             *
-             * Sau khi INSERT sẽ lấy ID
-             * và dùng chính ID đó làm thread_id.
-             */
-
             if (email.getThreadId() > 0) {
-                ps.setInt(
-                        7,
-                        email.getThreadId());
+                ps.setInt(7, email.getThreadId());
             } else {
-                ps.setInt(
-                        7,
-                        0);
+                ps.setInt(7, 0);
             }
+
             if (email.getInReplyTo() != null) {
-
-                ps.setInt(
-                        8,
-                        email.getInReplyTo());
-
+                ps.setInt(8, email.getInReplyTo());
             } else {
-
-                ps.setNull(
-                        8,
-                        Types.INTEGER);
+                ps.setNull(8, Types.INTEGER);
             }
 
             int affected = ps.executeUpdate();
 
             if (affected == 0) {
-                return false;
+                return -1;
             }
-
-            // ==========================================
-            // GET NEW ID
-            // ==========================================
 
             try (ResultSet rs = ps.getGeneratedKeys()) {
 
                 if (rs.next()) {
 
                     int newId = rs.getInt(1);
-
                     email.setId(newId);
 
-                    // ==================================
-                    // MAIL MỚI
-                    // ==================================
-
+                    // Mail mới → set thread_id = newId
                     if (email.getThreadId() <= 0) {
 
                         String updateSql = "UPDATE emails "
                                 + "SET thread_id = ? "
                                 + "WHERE id = ?";
 
-                        try (PreparedStatement updatePs = conn.prepareStatement(
-                                updateSql)) {
+                        try (PreparedStatement updatePs = conn.prepareStatement(updateSql)) {
 
-                            updatePs.setInt(
-                                    1,
-                                    newId);
-
-                            updatePs.setInt(
-                                    2,
-                                    newId);
-
+                            updatePs.setInt(1, newId);
+                            updatePs.setInt(2, newId);
                             updatePs.executeUpdate();
                         }
 
                         email.setThreadId(newId);
                     }
+
+                    return newId; // ⭐ TRẢ VỀ ID
                 }
             }
 
-            return true;
+            return -1;
 
         } catch (SQLException e) {
 
@@ -134,10 +106,9 @@ public class EmailDAO {
             System.out.println("Message: " + e.getMessage());
             e.printStackTrace();
 
-            return false;
+            return -1;
         }
     }
-
     // =========================================================
     // GET INBOX - MAIL RIÊNG
     // =========================================================

@@ -88,10 +88,11 @@ public class SMTPTestClient {
 
             // Gửi Content
             writer.print(content.toString());
+            writer.flush(); // ← THÊM DÒNG NÀY
 
             // Kết thúc DATA
             writer.println("<END>");
-
+            writer.flush(); // ← và dòng này
             // Nhận kết quả
             printServerResponse(reader);
 
